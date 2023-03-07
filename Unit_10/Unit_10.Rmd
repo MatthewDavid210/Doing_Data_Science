@@ -1,0 +1,136 @@
+---
+title: "DDS_UNIT_10_Linear_Regression"
+output: html_document
+date: "2023-03-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning = FALSE}
+library(tidyverse)
+
+```
+
+# Load in the cars dataset
+``` {r}
+cars = read.csv(file.choose())
+
+```
+# check the assumptions( normality, linearity, Equal SD, Independence)
+```{r}
+cars%>% ggplot(aes(x=Weight, y = MPG)) + geom_point()+ 
+  ggtitle("Weight vs MPG scatterplot")+ 
+  geom_smooth(method = "lm")
+```
+
+# I question normality so lets look at mpg < 40, and compare test to see if there is a significant difference 
+
+```{r}
+cars %>% filter(MPG<40) %>% ggplot(aes(x=Weight, y = MPG)) + geom_point()+ 
+  ggtitle("Weight vs MPG scatterplot")+ 
+  geom_smooth(method = "lm")
+
+cars2 = cars %>% filter(MPG<40)
+```
+# fit the model MPG = Bo +B1(Weight) for both the full dataset and the dataset with mpg < 40 
+```{r}
+fit= lm(MPG~Weight, data = cars)
+summary(fit)
+confint(fit)
+
+fit2= lm(MPG~Weight, data = cars2)
+summary(fit2)
+confint(fit2)
+```
+# There does not apear to be a signifcant difference in results so we will proceed with the full data of mpg assuming normality 
+
+# Cross validation of SLR models 1: Mpg = Bo + B1(weight) 2: Mpg= Bo+B1(weight)+B2(weight)^2
+
+#create train and test datasets 75% train, 25% test 
+```{r}
+set.seed(5)
+TrainObs= sample(seq(1,dim(cars)[1]),round(.75*dim(cars)[1]),replace = FALSE)
+
+TrainCars=cars[TrainObs,]
+TestCars= cars[-TrainObs,]
+```
+# Model 1 prediction MSPE 
+```{r}
+model1_fit= lm(MPG~Weight, data = TrainCars)
+summary(model1_fit)
+confint(model1_fit)
+
+model1_preds = predict(model1_fit, newdata = TestCars)
+as.data.frame(model1_preds)
+
+MSPE1= mean((TestCars$MPG - model1_preds)^2)
+```
+# Model 2 prediction MSPE
+```{r}
+
+cars3 = cars %>% mutate(Weight2=Weight^2)
+
+set.seed(5)
+TrainObs= sample(seq(1,dim(cars3)[1]),round(.75*dim(cars3)[1]),replace = FALSE)
+
+TestCars= cars3[-TrainObs,]
+TrainCars=cars3[TrainObs,]
+
+model2_fit =  lm(MPG~Weight+Weight2,data = TrainCars)
+
+model2_preds = predict(model2_fit, newdata = TestCars)
+as.data.frame(model2_preds)
+
+MSPE2= mean((TestCars$MPG - model2_preds)^2)
+```
+
+#predict Mpg for a car that weights 2000 lbs with model 2 as it had lower MSPE
+```{r}
+
+model2 =  lm(MPG~Weight+Weight2,data = cars3)
+summary(model2)
+confint(model2)
+
+Predictmpg= data.frame(Weight= c(2000),Weight2= c(4000000))
+
+predict(model2,newdata = Predictmpg, interval = "confidence")
+```
+# part 3: assess the relationship between mpg and horsepower 
+
+#impute missing values of Horsepower utilizing regression model to predict the values 
+#create regression model using displacement and cylinder( dataset with !is.na )
+```{r}
+cars4= cars %>% filter(!is.na(Horsepower))
+
+fit3= lm(Horsepower~Displacement+Cylinders, data = cars4)
+summary(fit3)
+```
+# Find missing values and replace them with predicted Horsepower using corresponding Displacement & Cylinder values
+```{r}
+cars5= cars %>% filter(is.na(Horsepower))
+
+PredictHP= data.frame(Model= c("renault 18i","amc concord dl"), Displacement = c(100,151), Cylinders = c(4,4))
+
+predict(fit3,newdata = PredictHP, interval = "confidence")
+
+# impute values rounding to whole number 
+
+cars[351,"Horsepower"] = 73
+cars[371,"Horsepower"] = 92
+```
+# assess the relationship between mpg and horsepower with fixed data
+```{r}
+cars%>% ggplot(aes(x= Horsepower,y=MPG))+ geom_point()+ ggtitle("Horsepower vs MPG")+ geom_smooth(method = "lm")
+
+fit4=  lm(MPG~Horsepower,data = cars)
+summary(fit4)
+confint(fit4)
+```
+# Predict Mpg when horsepower = 250 
+```{r}
+PredictMPG2= data.frame(Horsepower= c(250))
+
+predict(fit4,newdata = PredictMPG2, interval = "confidence")
+```
